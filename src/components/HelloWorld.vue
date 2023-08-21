@@ -6,53 +6,56 @@
     <div class="progress">
       <div class="progress-bar" role="progressbar" :style="{ width: progressPercentage }"></div>
     </div>
-    <div class="modal-form mx-auto" v-if="currentStep === 1">
+
+    <div
+      class="modal-form mx-auto custom-fade"
+      v-if="currentStep === 1"
+     v-bind:class="{  'show': currentStep == 1, 'fade-out': currentStep !== 1 }"
+    >
+
       <div class="window d-flex flex-column">
         <h2>
           First, let’s get a quick
           price estimate
         </h2>
         <div class="modal-form__select mx-auto">
-          <div class="mx-auto d-flex">
-            <div class="w-auto eight">
-              <label>Gender</label>
-              <div>
-                <button
-                  :class="{ active: formData.gender === 'male' }"
-                  @click="setGender('male')"
-                >Male</button>
-                <button
-                  :class="{ active: formData.gender === 'female' }"
-                  @click="setGender('female')"
-                >Female</button>
-              </div>
-            </div>
-            <div class="w-auto">
-              <label>Nicotine user?</label>
-              <div>
-                <button
-                  :class="{ active: formData.nicotine === 'yes' }"
-                  @click="setNicotine('yes')"
-                >Yes</button>
-                <button
-                  :class="{ active: formData.nicotine === 'no' }"
-                  @click="setNicotine('no')"
-                >No</button>
-              </div>
-            </div>
-          </div>
+         <AboutView/>
           <div class="modal-form__input d-flex">
             <div class="w-auto d-flex flex-column left">
               <label>Date of Birth:</label>
-              <input type="text" placeholder="MM/DD/YYYY" v-model="formData.dateOfBirth" />
+              <input
+                type="text"
+                placeholder="MM/DD/YYYY"
+                v-maska
+                data-maska="##/##/####"
+                data-maska-tokens="0:[0-9]:optional"
+                v-model="formData.dateOfBirth"
+                @input="validateDate"
+                :class="{ 'error-border': isInvalidDate }"
+              />
             </div>
+            <div></div>
             <div class="w-auto d-flex flex-column">
               <label>Zip code:</label>
-              <input type="text" placeholder="Zip code" v-model="formData.zip" />
+              <input
+                type="text"
+                placeholder="Zip code"
+                data-maska="####"
+                data-maska-tokens="0:[0-4]:optional"
+                maxlength="4"
+                v-model="formData.zip"
+                @input="sanitizeZipCode"
+              />
             </div>
           </div>
           <div class="modal-form__button w-100 d-flex">
-            <button type="button" class="next mx-auto" @click="validateAndNextStep">
+            <button
+              ref="nextButton"
+              type="button"
+              class="next mx-auto"
+              :class="{ active: isNextButtonActive }"
+              @click="nextButtonClick"
+            >
               See estimate
               <img src="../assets/ArrowRight.svg" alt />
             </button>
@@ -63,7 +66,12 @@
         <h5>Pendella Technologies, Inc (DBA PENDELLA TECHNOLOGIES INSURANCE AGENCY in CA & NY) ("Pendella"), a Delaware corporation with its principal place of business in Fort Myers, Florida, is a licensed independent insurance agency. Any insurance policy premium quotes or ranges displayed are non-binding. The final insurance policy premium for any policy is determined by the underwriting insurance company following application.</h5>
       </div>
     </div>
-    <div class="modal-rates mx-auto" v-else>
+
+    <div
+      class="modal-rates mx-auto custom-fade"
+      v-else
+      v-bind:class="{ 'show': currentStep === 2, 'fade-out': currentStep !== 2 }"
+    >
       <div class="window d-flex flex-column">
         <div>
           <button @click="ForvardStep" class="forvard">
@@ -84,7 +92,7 @@
                 </a>
               </h4>
               <div class="d-flex flex-row justify-content-center align-items-end">
-                <h2>$96</h2>
+                <h2>${{ formattedPrice }}</h2>
                 <span>/mo</span>
               </div>
             </div>
@@ -98,7 +106,7 @@
                 </a>
               </h4>
               <div class="d-flex flex-row justify-content-center align-items-end">
-                <h2>$128</h2>
+                <h2>${{formattedGood}}</h2>
                 <span>/mo</span>
               </div>
             </div>
@@ -112,7 +120,7 @@
                 </a>
               </h4>
               <div class="d-flex flex-row justify-content-center align-items-end">
-                <h2>$198</h2>
+                <h2>${{formattedFair}}</h2>
                 <span>/mo</span>
               </div>
             </div>
@@ -200,10 +208,24 @@
 <script>
 import $ from "jquery";
 import "bootstrap-slider";
+import { vMaska } from "maska";
+import AboutView from "@/views/AboutView.vue";
+
+
 export default {
+   name: "HelloWorld",
+  components: {
+    AboutView
+  },
+  directives: { maska: vMaska },
   data() {
     return {
+      isInvalidDate: false,
       currentStep: 1,
+      isNextButtonActive: false,
+      formattedPrice: 96,
+      formattedGood: 128,
+      formattedFair: 198,
       formData: {
         gender: "",
         input2: "",
@@ -223,6 +245,9 @@ export default {
   computed: {
     progressPercentage() {
       return `${((this.currentStep - 1) / 2) * 100}%`;
+    },
+    isAllFieldsEmpty() {
+      return Object.values(this.formData).every(value => value === "");
     }
   },
   methods: {
@@ -238,18 +263,97 @@ export default {
     },
 
     validateAndNextStep() {
-      if (this.formData.gender !== "") {
-        this.nextStep();
+      const requiredFields = ["gender", "nicotine", "zip", "dateOfBirth"];
+      let validationPassed = true;
+
+      for (const field of requiredFields) {
+        if (!this.formData[field]) {
+          validationPassed = false;
+          break;
+        }
+      }
+
+      if (validationPassed && !this.isInvalidDate) {
+        this.isNextButtonActive = true; // Enable the button
+        console.log("Validation passed");
       } else {
-        console.log("Step 1 validation failed");
+        this.isNextButtonActive = false; // Disable the button
+        console.log(
+          "Validation failed: Some required fields are missing or date is invalid"
+        );
       }
     },
-    updateYear(event) {
-      this.formData.selectedYear = parseInt(event.target.value);
+    nextButtonClick() {
+      if (this.isNextButtonActive) {
+        this.nextStep();
+      } else {
+        console.log("Button is not active");
+      }
     },
 
-    updatePrice(event) {
-      this.formData.selectedPrice = parseInt(event.target.value);
+    updateYear(event) {
+      this.formData.selectedYear = parseInt(event.target.value);
+      this.formattedPrice = Math.floor(1 + Math.random() * (999 - 96 + 1));
+      this.formattedGood = Math.floor(1 + Math.random() * (999 - 128 + 1));
+      this.formattedFair = Math.floor(1 + Math.random() * (999 - 198 + 1));
+      const targetYear = parseInt(event.target.value);
+      this.animateChangeWithDelay(targetYear);
+    },
+    animateChangeWithDelay(targetYear) {
+      const delay = 50; // Задержка между изменениями (в миллисекундах)
+      const step = 10; // Шаг изменения
+
+      const animateValue = (currentValue, targetValue, property) => {
+        if (currentValue === targetValue) return;
+
+        const newValue =
+          currentValue + step * Math.sign(targetValue - currentValue);
+        this[property] = newValue;
+
+        if (
+          (targetValue - newValue) * Math.sign(targetValue - currentValue) >
+          0
+        ) {
+          setTimeout(() => {
+            animateValue(newValue, targetValue, property);
+          }, delay);
+        } else {
+          this[property] = targetValue; // Завершаем анимацию, устанавливая финальное значение
+        }
+      };
+      animateValue(
+        this.formattedPrice,
+        this.getRandomValue(198, 999),
+        "formattedPrice"
+      );
+      animateValue(
+        this.formattedFair,
+        this.getRandomValue(198, 999),
+        "formattedFair"
+      );
+      animateValue(
+        this.formattedGood,
+        this.getRandomValue(128, 999),
+        "formattedGood"
+      );
+      animateValue(
+        this.formData.selectedYear,
+        targetYear,
+        "formData.selectedYear"
+      );
+    },
+
+    getRandomValue(min, max) {
+      return Math.floor(min + Math.random() * (max - min + 1));
+    },
+
+    updatePrice() {
+      // Update formattedPrice with a random value between 96 and 196
+      this.formattedPrice = Math.floor(1 + Math.random() * (999 - 96 + 1));
+      this.formattedGood = Math.floor(1 + Math.random() * (999 - 128 + 1));
+      this.formattedFair = Math.floor(1 + Math.random() * (999 - 198 + 1));
+       const targetPrice = this.formattedPrice; // Use the new formattedPrice value
+    this.animateChangeWithDelay(targetPrice);
     },
     submitForm() {
       console.log("Form data submitted:", this.formData);
@@ -267,7 +371,58 @@ export default {
     },
     setNicotine(nicotine) {
       this.formData.nicotine = nicotine;
+    },
+
+    validateDate() {
+      this.isInvalidDate = false;
+
+      if (!this.formData.dateOfBirth) {
+        return;
+      }
+
+      const currentDate = new Date();
+      const inputDate = new Date(this.formData.dateOfBirth);
+
+      const minAllowedDate = new Date();
+      minAllowedDate.setFullYear(currentDate.getFullYear() - 100);
+      minAllowedDate.setHours(0, 0, 0, 0);
+
+      const maxAllowedDate = new Date();
+      maxAllowedDate.setFullYear(currentDate.getFullYear() - 18);
+      maxAllowedDate.setHours(23, 59, 59, 999);
+      if (
+        inputDate >= minAllowedDate &&
+        inputDate <= maxAllowedDate &&
+        inputDate.getDate() >= 1 &&
+        inputDate.getDate() <=
+          new Date(
+            inputDate.getFullYear(),
+            inputDate.getMonth() + 1,
+            0
+          ).getDate() &&
+        inputDate.getMonth() >= 0 &&
+        inputDate.getMonth() <= 11
+      ) {
+        this.isInvalidDate = false; // Сбрасываем ошибку
+      } else {
+        this.isInvalidDate = true;
+      }
+    },
+    sanitizeZipCode() {
+      // Remove non-numeric characters from zip code
+      this.formData.zip = this.formData.zip.replace(/\D/g, "");
+
+      // If you want to limit the zip code to a maximum length of 4 characters
+      if (this.formData.zip.length > 4) {
+        this.formData.zip = this.formData.zip.slice(0, 4);
+      }
     }
+  },
+  mounted() {
+    const inputFields = document.querySelectorAll(".modal-form__input input");
+    inputFields.forEach(input => {
+      input.addEventListener("input", this.validateAndNextStep);
+    });
   }
 };
 </script>
@@ -281,6 +436,37 @@ $bg-grey: #f8fafc;
 $text-color: #121926;
 $border: #cdd5df;
 $border-gr: #e3e8ef;
+.error-border {
+  border-color: red;
+}
+.custom-fade {
+opacity:0!important;
+  visibility: hidden!important;
+   transition: opacity 1s ease-in-out;
+   -moz-transition: opacity 1s ease-in-out;
+   -webkit-transition: opacity 1s ease-in-out;
+}
+
+.show {
+opacity:1!important;
+  visibility: visible!important;
+   transition: opacity 1s ease-in-out;
+   -moz-transition: opacity 1s ease-in-out;
+   -webkit-transition: opacity 1s ease-in-out;
+}
+
+.fade-out {
+opacity:0!important;
+  visibility: hidden!important;
+   transition: opacity 1s ease-in-out;
+   -moz-transition: opacity 1s ease-in-out;
+   -webkit-transition: opacity 1s ease-in-out;
+}
+[type="button"]:not(:disabled) {
+  color: $white !important;
+  background-color: $border !important;
+  border: none !important;
+}
 h2 {
   font-size: 32px;
 
@@ -416,6 +602,7 @@ label {
     }
   }
   &-rates {
+      transition: visibility 2s ease-in-out;
     width: 800px;
     margin-top: 48px;
     &__health {
@@ -450,6 +637,7 @@ label {
     }
   }
   &-form {
+     transition: visibility 2s ease-in-out;
     margin-top: 48px;
     width: 800px;
     & h2 {
@@ -467,11 +655,7 @@ label {
         background-color: transparent;
         color: $text-color;
         border: 1px solid $border;
-        &:hover {
-          border: 1px solid $blue-prog;
-          background-color: rgba($blue-prog, 0.2);
-          color: $text-color;
-        }
+
         &.active {
           border: 1px solid $blue-prog;
           background-color: rgba($blue-prog, 0.2);
@@ -518,8 +702,9 @@ input {
 .left {
   margin-right: 16px;
 }
-button.quote {
-  background-color: $blue-prog;
+button.quote.mx-auto {
+  background-color: $blue-prog !important;
+  color: $white;
   width: 264px;
   height: 50px;
   color: $white;
@@ -533,15 +718,17 @@ button.quote {
 button.next {
   width: 225px;
   margin-top: 35px;
-  background-color: $border;
-  border-radius: 5px;
+  background-color: $blue-prog;
   color: $white;
+  border-radius: 5px;
+
   margin-bottom: 77px;
-  &:hover {
-    background-color: $blue-prog;
-    color: $white;
-  }
 }
+button.next.mx-auto.active {
+  background-color: $blue-prog !important;
+  color: $white;
+}
+
 h5 {
   color: $border;
   font-size: 10px;
@@ -663,6 +850,4 @@ input[type="range"]::-webkit-slider-runnable-track,
 input[type="range"]::-webkit-slider-thumb {
   position: relative;
 }
-
-
 </style>
